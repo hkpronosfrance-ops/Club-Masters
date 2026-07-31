@@ -11,6 +11,19 @@ async function getUserClub() {
   return profile?.club_id ?? null;
 }
 
+function safeNumber(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function transactionError(message?: string) {
+  if (message?.includes("INSUFFICIENT_FUNDS")) return { status: 400, message: "Budget insuffisant." };
+  if (message?.includes("PLAYER_NO_LONGER_AVAILABLE")) return { status: 409, message: "Le joueur n’est plus disponible dans ce club." };
+  if (message?.includes("NEGOTIATION_NOT_COMPLETABLE")) return { status: 409, message: "Cette négociation ne peut plus être finalisée." };
+  if (message?.includes("NEGOTIATION_NOT_FOUND")) return { status: 404, message: "Négociation introuvable." };
+  return { status: 500, message: "Le transfert n’a pas pu être finalisé." };
+}
+
 export async function GET() {
   const clubId = await getUserClub();
   if (!clubId) return NextResponse.json({ error: "Non authentifié ou aucun club." }, { status: 401 });
@@ -28,11 +41,12 @@ export async function POST(req: Request) {
   const clubId = await getUserClub();
   if (!clubId) return NextResponse.json({ error: "Non authentifié ou aucun club." }, { status: 401 });
   const body = await req.json().catch(() => null);
-  const playerId = body?.playerId;
-  const transferFee = Number(body?.transferFee);
-  const wageOffer = Number(body?.wageOffer);
-  const signingBonus = Number(body?.signingBonus ?? 0);
-  const contractYears = Number(body?.contractYears ?? 3);
+  const playerId = typeof body?.playerId === "string" ? body.playerId : null;
+  const transferFee = safeNumber(body?.transferFee, -1);
+  const wageOffer = safeNumber(body?.wageOffer, -1);
+  const signingBonus = safeNumber(body?.signingBonus, 0);
+  const contractYears = Math.trunc(safeNumber(body?.contractYears, 3));
+
   if (!playerId || transferFee <= 0 || wageOffer <= 0 || signingBonus < 0 || contractYears < 1 || contractYears > 5) {
     return NextResponse.json({ error: "Offre invalide." }, { status: 400 });
   }
@@ -43,12 +57,12 @@ export async function POST(req: Request) {
     admin.from("clubs").select("id,balance,reputation").eq("id", clubId).single(),
   ]);
   if (!player?.club_id || player.club_id === clubId) return NextResponse.json({ error: "Joueur indisponible." }, { status: 400 });
-  if (!buyer || buyer.balance < transferFee + signingBonus) return NextResponse.json({ error: "Budget insuffisant." }, { status: 400 });
+  if (!buyer || safeNumber(buyer.balance) < transferFee + signingBonus) return NextResponse.json({ error: "Budget insuffisant." }, { status: 400 });
 
-  const asking = Math.max(Number(player.listed_price ?? 0), Number(player.value ?? 0));
-  const wageDemand = Math.max(Number(player.wage ?? 1000), Math.round((Number(player.value ?? 0) / 260) * (1 + Math.max(0, 55 - Number(buyer.reputation ?? 50)) / 100)));
+  const asking = Math.max(safeNumber(player.listed_price), safeNumber(player.value));
+  const wageDemand = Math.max(safeNumber(player.wage, 1000), Math.round((safeNumber(player.value) / 260) * (1 + Math.max(0, 55 - safeNumber(buyer.reputation, 50)) / 100)));
   const feeRatio = asking > 0 ? transferFee / asking : 1;
-  const wageRatio = wageOffer / wageDemand;
+  const wageRatio = wageOffer / Math.max(1, wageDemand);
   let status = "rejected";
   let clubResponse = "Le club vendeur juge l'offre trop faible.";
   let counterFee: number | null = null;
@@ -85,32 +99,28 @@ export async function PATCH(req: Request) {
   const clubId = await getUserClub();
   if (!clubId) return NextResponse.json({ error: "Non authentifié ou aucun club." }, { status: 401 });
   const body = await req.json().catch(() => null);
-  const id = body?.id;
+  const id = typeof body?.id === "string" ? body.id : null;
   const action = body?.action;
+  if (!id || !["cancel", "complete"].includes(action)) return NextResponse.json({ error: "Action invalide." }, { status: 400 });
+
   const admin = createAdminClient();
-  const { data: negotiation } = await admin.from("transfer_negotiations").select("*").eq("id", id).eq("buyer_club_id", clubId).single();
+  const { data: negotiation } = await admin.from("transfer_negotiations").select("id,status").eq("id", id).eq("buyer_club_id", clubId).maybeSingle();
   if (!negotiation) return NextResponse.json({ error: "Négociation introuvable." }, { status: 404 });
+
   if (action === "cancel") {
-    await admin.from("transfer_negotiations").update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", id);
+    if (["completed", "cancelled"].includes(negotiation.status)) return NextResponse.json({ error: "Cette négociation est déjà clôturée." }, { status: 409 });
+    const { error } = await admin.from("transfer_negotiations").update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", id).eq("buyer_club_id", clubId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   }
-  if (action !== "complete" || !["accepted", "countered"].includes(negotiation.status)) {
-    return NextResponse.json({ error: "Action impossible." }, { status: 400 });
+
+  const { data, error } = await admin.rpc("complete_transfer_negotiation", {
+    p_negotiation_id: id,
+    p_buyer_club_id: clubId,
+  });
+  if (error) {
+    const mapped = transactionError(error.message);
+    return NextResponse.json({ error: mapped.message }, { status: mapped.status });
   }
-
-  const fee = Number(negotiation.counter_fee ?? negotiation.transfer_fee);
-  const wage = Number(negotiation.counter_wage ?? negotiation.wage_offer);
-  const total = fee + Number(negotiation.signing_bonus ?? 0);
-  const { data: buyer } = await admin.from("clubs").select("balance").eq("id", clubId).single();
-  if (!buyer || buyer.balance < total) return NextResponse.json({ error: "Budget insuffisant." }, { status: 400 });
-  const end = new Date();
-  end.setFullYear(end.getFullYear() + Number(negotiation.contract_years));
-
-  const { error: clubError } = await admin.from("clubs").update({ balance: buyer.balance - total }).eq("id", clubId);
-  if (clubError) return NextResponse.json({ error: clubError.message }, { status: 500 });
-  const { error: playerError } = await admin.from("players").update({ club_id: clubId, wage, contract_until: end.toISOString().slice(0, 10), is_listed: false, listed_price: null }).eq("id", negotiation.player_id);
-  if (playerError) return NextResponse.json({ error: playerError.message }, { status: 500 });
-  await admin.from("transfers").insert({ player_id: negotiation.player_id, from_club_id: negotiation.seller_club_id, to_club_id: clubId, fee });
-  await admin.from("transfer_negotiations").update({ status: "completed", updated_at: new Date().toISOString() }).eq("id", id);
-  return NextResponse.json({ ok: true });
+  return NextResponse.json(data ?? { ok: true });
 }
