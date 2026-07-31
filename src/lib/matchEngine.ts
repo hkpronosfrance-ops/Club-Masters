@@ -100,7 +100,8 @@ export function simulateMatch(home: EngineClub, away: EngineClub, options: { wea
     const scoreFor=isHome?homeScore:awayScore, scoreAgainst=isHome?awayScore:homeScore, attacking=scoreFor<=scoreAgainst;
     const candidates=[...xi].filter(p=>p.position!=="GK").sort((a,b)=>(effective(a,minute)-effective(b,minute)) || (b.fatigue-a.fatigue));
     const outgoing=candidates[0]; if(!outgoing)return; const incoming=bestReplacement(bench,outgoing,attacking); if(!incoming)return;
-    xi=xi.map(p=>p.id===outgoing.id?incoming:p); bench=bench.filter(p=>p.id!==incoming.id); bench.push(outgoing);
+    xi=xi.map(p=>p.id===outgoing.id?incoming:p);
+    bench=bench.filter(p=>p.id!==incoming.id);
     if(isHome){homeXI=xi;homeBench=bench;homeSubs++;}else{awayXI=xi;awayBench=bench;awaySubs++;}
     events.push({minute,type:"substitution",team,playerName:playerName(incoming),secondaryPlayerName:playerName(outgoing),commentary:`${playerName(incoming)} remplace ${playerName(outgoing)} pour apporter ${attacking?"plus de danger":"davantage de fraîcheur défensive"}.`});
   };
