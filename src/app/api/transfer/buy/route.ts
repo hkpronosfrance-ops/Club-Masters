@@ -7,48 +7,39 @@ export async function POST(req: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-  const { playerId } = await req.json();
+  if (!user) {
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  }
+
+  const body = await req.json().catch(() => null);
+  const playerId = body?.playerId;
+
+  if (typeof playerId !== "string" || !playerId) {
+    return NextResponse.json({ error: "Identifiant joueur invalide" }, { status: 400 });
+  }
+
   const admin = createAdminClient();
-
-  const { data: profile } = await admin.from("profiles").select("club_id").eq("id", user.id).single();
-  if (!profile?.club_id) return NextResponse.json({ error: "Aucun club" }, { status: 400 });
-
-  const { data: buyerClub } = await admin.from("clubs").select("*").eq("id", profile.club_id).single();
-  const { data: player } = await admin.from("players").select("*").eq("id", playerId).single();
-
-  if (!player || !player.is_listed) {
-    return NextResponse.json({ error: "Joueur indisponible" }, { status: 400 });
-  }
-  if (player.club_id === buyerClub!.id) {
-    return NextResponse.json({ error: "C'est déjà ton joueur" }, { status: 400 });
-  }
-  if (buyerClub!.balance < player.listed_price) {
-    return NextResponse.json({ error: "Budget insuffisant" }, { status: 400 });
-  }
-
-  const { data: sellerClub } = await admin.from("clubs").select("*").eq("id", player.club_id).single();
-
-  // Transaction simplifiée (MVP) : 3 updates séquentiels
-  await admin.from("clubs").update({ balance: buyerClub!.balance - player.listed_price }).eq("id", buyerClub!.id);
-  if (sellerClub) {
-    await admin
-      .from("clubs")
-      .update({ balance: sellerClub.balance + player.listed_price })
-      .eq("id", sellerClub.id);
-  }
-  await admin
-    .from("players")
-    .update({ club_id: buyerClub!.id, is_listed: false, listed_price: null })
-    .eq("id", playerId);
-
-  await admin.from("transfers").insert({
-    player_id: playerId,
-    from_club_id: player.club_id,
-    to_club_id: buyerClub!.id,
-    fee: player.listed_price,
+  const { data, error } = await admin.rpc("buy_listed_player", {
+    p_user_id: user.id,
+    p_player_id: playerId,
   });
 
-  return NextResponse.json({ success: true });
+  if (error) {
+    const knownErrors = [
+      "Aucun club",
+      "Joueur indisponible",
+      "C'est déjà ton joueur",
+      "Budget insuffisant",
+      "Prix invalide",
+    ];
+    const message = knownErrors.find((known) => error.message.includes(known));
+
+    return NextResponse.json(
+      { error: message ?? "Impossible de finaliser le transfert" },
+      { status: message ? 400 : 500 }
+    );
+  }
+
+  return NextResponse.json(data ?? { success: true });
 }
