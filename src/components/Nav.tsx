@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "/dashboard", label: "Club", icon: "🏟️" },
   { href: "/squad", label: "Effectif", icon: "👥" },
   { href: "/tactics", label: "Match", icon: "⚽" },
+  { href: "/league", label: "Ligue", icon: "🏆" },
   { href: "/transfermarket", label: "Mercato", icon: "💰" },
 ];
 
@@ -24,7 +25,6 @@ export default function Nav() {
 
   return (
     <>
-      {/* Nav desktop */}
       <header className="hidden md:flex items-center justify-between border-b border-pitch-700 px-8 py-4 bg-pitch-900/80 backdrop-blur sticky top-0 z-20">
         <div className="font-display text-xl font-semibold tracking-tight">
           DYNASTY<span className="text-carmine">ELEVEN</span>
@@ -47,13 +47,12 @@ export default function Nav() {
         </button>
       </header>
 
-      {/* Nav mobile (bottom bar) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 bg-pitch-900/95 backdrop-blur border-t border-pitch-700 flex justify-around py-2 pb-[env(safe-area-inset-bottom)]">
         {ITEMS.map((item) => (
           <Link
             key={item.href}
             href={item.href}
-            className={`flex flex-col items-center gap-0.5 px-3 py-1 text-[11px] ${
+            className={`flex flex-col items-center gap-0.5 px-2 py-1 text-[10px] ${
               pathname === item.href ? "text-carmine-light" : "text-muted"
             }`}
           >
