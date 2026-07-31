@@ -4,8 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { simulateMatch, type EngineClub, type EnginePlayer } from "@/lib/matchEngine";
 import { seasonObjective, updateBoardProgress } from "@/lib/boardProgress";
 
-function toEngineClub(club: any, players: any[]): EngineClub {
-  return { id: club.id, name: club.name, formation: club.formation, tactic_style: club.tactic_style, mentality: club.mentality, players: players as EnginePlayer[] };
+function toEngineClub(club: any, players: any[], startingIds: string[]): EngineClub {
+  return { id: club.id, name: club.name, formation: club.formation, tactic_style: club.tactic_style, mentality: club.mentality, players: players as EnginePlayer[], startingIds };
 }
 function available(player: any) { return !player.injured_until || new Date(player.injured_until).getTime() <= Date.now(); }
 function bestEleven(players: any[]) { return [...players].filter(available).sort((a, b) => (b.overall - b.fatigue * 0.18) - (a.overall - a.fatigue * 0.18)).slice(0, 11); }
@@ -53,16 +53,19 @@ export async function POST(request: Request) {
     season = initialized ?? season;
   }
 
-  const ownedPlayers = myPlayers ?? [];
+  const ownedPlayers = (myPlayers ?? []).filter(available);
+  const opponentAvailable = (opponentPlayers ?? []).filter(available);
   const starters = starterIds.map((id: string) => ownedPlayers.find((player) => player.id === id)).filter(Boolean);
-  if (starters.length !== 11) return NextResponse.json({ error: "La composition contient un joueur qui n'appartient plus à ton club." }, { status: 400 });
-  if (starters.some((player: any) => !available(player))) return NextResponse.json({ error: "Un joueur blessé figure dans la composition." }, { status: 400 });
+  if (starters.length !== 11) return NextResponse.json({ error: "La composition contient un joueur indisponible ou qui n'appartient plus à ton club." }, { status: 400 });
   if (!starters.some((player: any) => player.position === "GK")) return NextResponse.json({ error: "Ta composition doit contenir au moins un gardien." }, { status: 400 });
-  const opponentStarters = bestEleven(opponentPlayers ?? []);
+  const opponentStarters = bestEleven(opponentAvailable);
   if (opponentStarters.length < 11) return NextResponse.json({ error: "L'adversaire ne dispose pas de suffisamment de joueurs disponibles." }, { status: 400 });
 
-  const home = homeIsMe ? toEngineClub(myClub, starters) : toEngineClub(opponent, opponentStarters);
-  const away = homeIsMe ? toEngineClub(opponent, opponentStarters) : toEngineClub(myClub, starters);
+  const opponentStarterIds = opponentStarters.map((player: any) => player.id);
+  const myEngine = toEngineClub(myClub, ownedPlayers, starterIds as string[]);
+  const opponentEngine = toEngineClub(opponent, opponentAvailable, opponentStarterIds);
+  const home = homeIsMe ? myEngine : opponentEngine;
+  const away = homeIsMe ? opponentEngine : myEngine;
   const weathers = ["sunny", "rain", "cold"] as const;
   const result = simulateMatch(home, away, { weather: weathers[Math.floor(Math.random() * weathers.length)] });
   await admin.from("matches").insert({ home_club_id: home.id, away_club_id: away.id, home_score: result.homeScore, away_score: result.awayScore, events: result.events, home_strength: result.homeStrength, away_strength: result.awayStrength });
@@ -76,12 +79,16 @@ export async function POST(request: Request) {
   const balanceAfterMatch = myClub.balance + matchBonus + ticketRevenue;
   await admin.from("clubs").update({ wins: myClub.wins + (outcome === "win" ? 1 : 0), draws: myClub.draws + (outcome === "draw" ? 1 : 0), losses: myClub.losses + (outcome === "loss" ? 1 : 0), balance: balanceAfterMatch }).eq("id", myClub.id);
 
+  const substitutionEvents = result.events.filter((event) => event.type === "substitution" && event.team === (homeIsMe ? "home" : "away"));
+  const usedNames = new Set(substitutionEvents.flatMap((event) => [event.playerName, event.secondaryPlayerName].filter(Boolean)));
   const injuries: { id: string; name: string; type: string; days: number }[] = [];
   const formDelta = outcome === "win" ? 6 : outcome === "draw" ? 1 : -5; const starterSet = new Set(starterIds);
   for (const player of ownedPlayers) {
-    const played = starterSet.has(player.id); const nextFatigue = Math.min(100, Math.max(0, player.fatigue + (played ? 15 + Math.floor(Math.random() * 10) : -4)));
+    const fullName = `${player.first_name} ${player.last_name}`;
+    const played = starterSet.has(player.id) || usedNames.has(fullName);
+    const nextFatigue = Math.min(100, Math.max(0, player.fatigue + (played ? 15 + Math.floor(Math.random() * 10) : -4)));
     const update: Record<string, unknown> = { fatigue: nextFatigue, form: Math.max(0, Math.min(100, player.form + (played ? formDelta + Math.floor(Math.random() * 6 - 3) : 0))) };
-    if (played && Math.random() < injuryRisk(nextFatigue)) { const days = nextFatigue >= 90 ? 10 + Math.floor(Math.random() * 12) : 3 + Math.floor(Math.random() * 7); const types = ["Lésion musculaire", "Entorse", "Contusion"]; const type = types[Math.floor(Math.random() * types.length)]; update.injured_until = new Date(Date.now() + days * 86_400_000).toISOString(); update.injury_type = type; injuries.push({ id: player.id, name: `${player.first_name} ${player.last_name}`, type, days }); }
+    if (played && Math.random() < injuryRisk(nextFatigue)) { const days = nextFatigue >= 90 ? 10 + Math.floor(Math.random() * 12) : 3 + Math.floor(Math.random() * 7); const types = ["Lésion musculaire", "Entorse", "Contusion"]; const type = types[Math.floor(Math.random() * types.length)]; update.injured_until = new Date(Date.now() + days * 86_400_000).toISOString(); update.injury_type = type; injuries.push({ id: player.id, name: fullName, type, days }); }
     await admin.from("players").update(update).eq("id", player.id);
   }
 
