@@ -85,11 +85,11 @@ function generatePlayer(position: Position, clubLevel: number): GeneratedPlayer 
   // clubLevel: 30-85, influence le niveau moyen généré
   const base = clubLevel + rand(-10, 10);
 
-  const pace = clamp(profile.pace + variance() + (base - 60) / 2);
-  const shooting = clamp(profile.shooting + variance() + (base - 60) / 2);
-  const passing = clamp(profile.passing + variance() + (base - 60) / 2);
-  const defending = clamp(profile.defending + variance() + (base - 60) / 2);
-  const physical = clamp(profile.physical + variance() + (base - 60) / 2);
+  const pace = clamp(Math.round(profile.pace + variance() + (base - 60) / 2));
+  const shooting = clamp(Math.round(profile.shooting + variance() + (base - 60) / 2));
+  const passing = clamp(Math.round(profile.passing + variance() + (base - 60) / 2));
+  const defending = clamp(Math.round(profile.defending + variance() + (base - 60) / 2));
+  const physical = clamp(Math.round(profile.physical + variance() + (base - 60) / 2));
 
   const overall = clamp(
     Math.round((pace + shooting + passing + defending + physical) / 5)
