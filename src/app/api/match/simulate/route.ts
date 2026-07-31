@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   const { data: seasonData } = await admin.from("seasons").select("*").eq("status", "active").eq("user_club_id", profile.club_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (!seasonData) return NextResponse.json({ error: "Aucune saison active. Ouvre d'abord la page Ligue." }, { status: 400 });
   let season = seasonData;
-  const { data: fixture } = await admin.from("league_fixtures").select("*").eq("season_id", season.id).eq("round", season.current_round).eq("played", false).or(`home_club_id.eq.${profile.club_id},away_club_id.eq.${profile.club_id}`).maybeSingle();
+  let { data: fixture } = await admin.from("league_fixtures").select("*").eq("season_id", season.id).eq("round", season.current_round).eq("played", false).or(`home_club_id.eq.${profile.club_id},away_club_id.eq.${profile.club_id}`).maybeSingle();
   if (!fixture) return NextResponse.json({ error: "Ton match de cette journée a déjà été joué ou aucun match n'est prévu." }, { status: 400 });
 
   const opponentId = fixture.home_club_id === profile.club_id ? fixture.away_club_id : fixture.home_club_id;
@@ -70,6 +70,20 @@ export async function POST(request: Request) {
   const opponentStarters = bestEleven(opponentAvailable);
   if (opponentStarters.length < 11) return NextResponse.json({ error: "L'adversaire ne dispose pas de suffisamment de joueurs disponibles." }, { status: 400 });
 
+  const lockStartedAt = new Date().toISOString();
+  const staleBefore = new Date(Date.now() - 120_000).toISOString();
+  const { data: claimedFixture, error: claimError } = await admin
+    .from("league_fixtures")
+    .update({ processing: true, processing_started_at: lockStartedAt })
+    .eq("id", fixture.id)
+    .eq("played", false)
+    .or(`processing.eq.false,processing_started_at.is.null,processing_started_at.lt.${staleBefore}`)
+    .select("*")
+    .maybeSingle();
+  if (claimError) return NextResponse.json({ error: `Impossible de verrouiller la rencontre : ${claimError.message}` }, { status: 500 });
+  if (!claimedFixture) return NextResponse.json({ error: "Cette rencontre est déjà en cours de simulation dans une autre fenêtre. Patiente quelques instants." }, { status: 409 });
+  fixture = claimedFixture;
+
   const myEngine = toEngineClub(myClub, ownedPlayers, starterIds);
   const opponentStarterIds = opponentStarters.map((player: any) => player.id);
   const opponentEngine = toEngineClub(opponent, opponentAvailable, opponentStarterIds);
@@ -77,7 +91,10 @@ export async function POST(request: Request) {
   const away = homeIsMe ? opponentEngine : myEngine;
   const result = simulateMatch(home, away, { weather: (["sunny", "rain", "cold"] as const)[Math.floor(Math.random() * 3)] });
   const { data: savedMatch, error: matchError } = await admin.from("matches").insert({ home_club_id: home.id, away_club_id: away.id, home_score: result.homeScore, away_score: result.awayScore, events: result.events, home_strength: result.homeStrength, away_strength: result.awayStrength }).select("id").single();
-  if (matchError || !savedMatch) return NextResponse.json({ error: matchError?.message ?? "Impossible d'enregistrer le match." }, { status: 500 });
+  if (matchError || !savedMatch) {
+    await admin.from("league_fixtures").update({ processing: false, processing_started_at: null }).eq("id", fixture.id).eq("processing_started_at", lockStartedAt);
+    return NextResponse.json({ error: matchError?.message ?? "Impossible d'enregistrer le match." }, { status: 500 });
+  }
 
   await updatePlayerSeasonStats({
     admin,
@@ -93,7 +110,17 @@ export async function POST(request: Request) {
     awayScore: result.awayScore,
   });
 
-  await admin.from("league_fixtures").update({ home_score: result.homeScore, away_score: result.awayScore, played: true, played_at: new Date().toISOString() }).eq("id", fixture.id);
+  const { data: completedFixture, error: fixtureError } = await admin
+    .from("league_fixtures")
+    .update({ home_score: result.homeScore, away_score: result.awayScore, played: true, played_at: new Date().toISOString(), processing: false, processing_started_at: null })
+    .eq("id", fixture.id)
+    .eq("played", false)
+    .eq("processing", true)
+    .eq("processing_started_at", lockStartedAt)
+    .select("id")
+    .maybeSingle();
+  if (fixtureError || !completedFixture) return NextResponse.json({ error: fixtureError?.message ?? "La rencontre n'a pas pu être finalisée car son état a changé." }, { status: 409 });
+
   await updateStanding(admin, season.id, home.id, result.homeScore, result.awayScore);
   await updateStanding(admin, season.id, away.id, result.awayScore, result.homeScore);
   const myScore = homeIsMe ? result.homeScore : result.awayScore;
