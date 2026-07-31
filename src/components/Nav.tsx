@@ -23,6 +23,7 @@ const ITEMS = [
   { href: "/match-live", label: "Direct", icon: "📺" },
   { href: "/league", label: "Ligue", icon: "🏆" },
   { href: "/history", label: "Histoire", icon: "📚" },
+  { href: "/lifecycle", label: "Évolution", icon: "🧬" },
   { href: "/cup", label: "Coupe", icon: "🥇" },
   { href: "/europe", label: "Europe", icon: "🌍" },
   { href: "/world", label: "Actualités", icon: "📰" },
