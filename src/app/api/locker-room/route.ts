@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     if (!player) return NextResponse.json({ error: "Joueur introuvable." }, { status: 404 });
     const config = TALKS[talk];
     if (player.last_manager_talk_at && Date.now() - new Date(player.last_manager_talk_at).getTime() < config.cooldown * 86_400_000) return NextResponse.json({ error: "Un entretien a déjà eu lieu récemment avec ce joueur." }, { status: 429 });
-    let delta = config.delta;
+    let delta: number = config.delta;
     if (talk === "praise" && Number(player.form ?? 50) < 45) delta = 2;
     if (talk === "criticize" && Number(player.form ?? 50) >= 65) delta = -9;
     const update: Record<string, unknown> = { morale: Math.max(0, Math.min(100, Number(player.morale ?? 65) + delta)), coach_trust: Math.max(0, Math.min(100, Number(player.coach_trust ?? 60) + config.trust)), last_manager_talk_at: new Date().toISOString(), happiness_reason: delta >= 0 ? "Encouragé par son manager" : "Froissé après un entretien" };
