@@ -55,7 +55,13 @@ export default function HomePage() {
     setError(null);
     try {
       const { error: signUpError } = await supabase.auth.signUp({ email, password });
-      if (signUpError) throw signUpError;
+      // Si le compte existe déjà (ex. tentative précédente interrompue après l'inscription
+      // mais avant la création du club), on ignore cette erreur précise et on continue
+      // avec la connexion normale.
+      if (signUpError && !/already registered|already exists/i.test(signUpError.message)) {
+        throw signUpError;
+      }
+
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) throw signInError;
 

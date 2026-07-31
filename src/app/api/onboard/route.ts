@@ -29,6 +29,15 @@ export async function POST(req: Request) {
   const { clubName, crest } = await req.json().catch(() => ({ clubName: null, crest: null }));
   const { name, short_name } = generateAiClubName();
 
+  // Le profil doit exister AVANT le club, car clubs.owner_id référence profiles.id
+  const { error: profileUpsertError } = await admin
+    .from("profiles")
+    .upsert({ id: user.id, username: user.email?.split("@")[0] ?? "manager" }, { onConflict: "id" });
+
+  if (profileUpsertError) {
+    return NextResponse.json({ error: profileUpsertError.message }, { status: 500 });
+  }
+
   const { data: club, error: clubError } = await admin
     .from("clubs")
     .insert({
@@ -62,9 +71,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: playersError.message }, { status: 500 });
   }
 
-  await admin
+  const { error: profileLinkError } = await admin
     .from("profiles")
-    .upsert({ id: user.id, username: user.email?.split("@")[0] ?? "manager", club_id: club.id });
+    .update({ club_id: club.id })
+    .eq("id", user.id);
+
+  if (profileLinkError) {
+    return NextResponse.json({ error: profileLinkError.message }, { status: 500 });
+  }
 
   return NextResponse.json({ clubId: club.id });
 }
