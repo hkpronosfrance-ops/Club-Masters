@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { simulateMatch, type EngineClub, type EnginePlayer } from "@/lib/matchEngine";
 import { seasonObjective, updateBoardProgress } from "@/lib/boardProgress";
+import { loadStaffLevels, matchMedicalEffects } from "@/lib/staffEffects";
 
 function toEngineClub(club: any, players: any[], startingIds: string[]): EngineClub {
   return {
@@ -113,6 +114,9 @@ export async function POST(request: Request) {
   ]);
   if (!myClub || !opponent) return NextResponse.json({ error: "Club introuvable." }, { status: 404 });
 
+  const staffLevels = await loadStaffLevels(admin, myClub.id);
+  const medicalEffects = matchMedicalEffects(staffLevels);
+
   if (!season.objective_code) {
     const { count } = await admin.from("season_clubs").select("club_id", { count: "exact", head: true }).eq("season_id", season.id);
     const objective = seasonObjective(myClub.reputation ?? 50, count ?? 10);
@@ -201,13 +205,17 @@ export async function POST(request: Request) {
   for (const player of ownedPlayers) {
     const fullName = `${player.first_name} ${player.last_name}`;
     const played = starterSet.has(player.id) || usedNames.has(fullName);
-    const nextFatigue = Math.min(100, Math.max(0, player.fatigue + (played ? 15 + Math.floor(Math.random() * 10) : -4)));
+    const matchFatigueGain = played ? Math.max(7, 15 + Math.floor(Math.random() * 10) - medicalEffects.fatigueGainReduction) : -4 - medicalEffects.recoveryBonus;
+    const nextFatigue = Math.min(100, Math.max(0, Number(player.fatigue ?? 0) + matchFatigueGain));
     const update: Record<string, unknown> = {
       fatigue: nextFatigue,
-      form: Math.max(0, Math.min(100, player.form + (played ? formDelta + Math.floor(Math.random() * 6 - 3) : 0))),
+      form: Math.max(0, Math.min(100, Number(player.form ?? 50) + (played ? formDelta + Math.floor(Math.random() * 6 - 3) : 0))),
     };
-    if (played && Math.random() < injuryRisk(nextFatigue)) {
-      const days = nextFatigue >= 90 ? 10 + Math.floor(Math.random() * 12) : 3 + Math.floor(Math.random() * 7);
+    const adjustedInjuryRisk = injuryRisk(nextFatigue) * medicalEffects.injuryMultiplier;
+    if (played && Math.random() < adjustedInjuryRisk) {
+      const baseDays = nextFatigue >= 90 ? 10 + Math.floor(Math.random() * 12) : 3 + Math.floor(Math.random() * 7);
+      const doctorReduction = Math.floor(staffLevels.doctor / 2);
+      const days = Math.max(1, baseDays - doctorReduction);
       const types = ["Lésion musculaire", "Entorse", "Contusion"];
       const type = types[Math.floor(Math.random() * types.length)];
       update.injured_until = new Date(Date.now() + days * 86_400_000).toISOString();
@@ -259,6 +267,13 @@ export async function POST(request: Request) {
       merchandiseRevenue: Number(attendance.merchandise_revenue ?? 0),
       totalRevenue: stadiumRevenue,
     } : null,
+    staffImpact: {
+      doctorLevel: staffLevels.doctor,
+      fitnessCoachLevel: staffLevels.fitness_coach,
+      injuryReductionPercent: Math.round((1 - medicalEffects.injuryMultiplier) * 100),
+      fatigueGainReduction: medicalEffects.fatigueGainReduction,
+      recoveryBonus: medicalEffects.recoveryBonus,
+    },
     injuries,
     round: season.current_round,
     seasonFinished,
