@@ -30,6 +30,28 @@ type UpdateInput = {
   awayScore: number;
 };
 
+type StatsRow = {
+  season_id: string;
+  player_id: string;
+  club_id: string;
+  appearances: number;
+  starts: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  shots: number;
+  shots_on_target: number;
+  yellow_cards: number;
+  red_cards: number;
+  clean_sheets: number;
+  goals_conceded: number;
+  saves: number;
+  rating_total: number;
+  rating_count: number;
+  updated_at: string;
+  [key: string]: string | number;
+};
+
 const fullName = (player: Player) => `${player.first_name} ${player.last_name}`;
 
 function minutesByPlayer(players: Player[], starterIds: string[], events: MatchEvent[], team: "home" | "away") {
@@ -69,7 +91,7 @@ export async function updatePlayerSeasonStats(input: UpdateInput) {
     { team: "away" as const, clubId: input.awayClubId, players: input.awayPlayers, starters: input.awayStarterIds, scored: input.awayScore, conceded: input.homeScore },
   ];
 
-  const rows: Record<string, unknown>[] = [];
+  const rows: StatsRow[] = [];
   for (const side of teams) {
     const minutes = minutesByPlayer(side.players, side.starters, input.events, side.team);
     for (const player of side.players) {
