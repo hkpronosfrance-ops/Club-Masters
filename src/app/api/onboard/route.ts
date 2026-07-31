@@ -42,9 +42,9 @@ export async function POST(req: Request) {
       tactic_style: "balanced",
       mentality: 50,
       crest_shape: crest?.shape || "shield",
-      crest_icon: crest?.icon || "⚽",
+      crest_icon: crest?.icon || "ball",
       primary_color: crest?.primaryColor || "#C81E3A",
-      secondary_color: crest?.secondaryColor || "#0E1015",
+      secondary_color: crest?.secondaryColor || "#FFFFFF",
     })
     .select()
     .single();

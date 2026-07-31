@@ -19,7 +19,7 @@ export default function HomePage() {
   const [shape, setShape] = useState<CrestShape>("shield");
   const [primaryColor, setPrimaryColor] = useState(CREST_COLORS[0]);
   const [secondaryColor, setSecondaryColor] = useState(CREST_SECONDARY_COLORS[0]);
-  const [icon, setIcon] = useState(CREST_ICONS[0]);
+  const [icon, setIcon] = useState<string>(CREST_ICONS[0].key);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -217,15 +217,16 @@ export default function HomePage() {
 
               <div>
                 <p className="field-label mb-2">Emblème</p>
-                <div className="grid grid-cols-5 gap-2">
-                  {CREST_ICONS.map((i) => (
+                <div className="grid grid-cols-4 gap-2">
+                  {CREST_ICONS.map(({ key, label, Icon }) => (
                     <button
-                      key={i}
+                      key={key}
                       type="button"
-                      onClick={() => setIcon(i)}
-                      className={`aspect-square rounded-lg text-xl flex items-center justify-center transition ${icon === i ? "bg-carmine" : "bg-pitch-800"}`}
+                      onClick={() => setIcon(key)}
+                      title={label}
+                      className={`aspect-square rounded-lg flex items-center justify-center transition ${icon === key ? "bg-carmine text-white" : "bg-pitch-800 text-zinc-300 hover:text-white"}`}
                     >
-                      {i}
+                      <Icon size={22} strokeWidth={1.6} />
                     </button>
                   ))}
                 </div>

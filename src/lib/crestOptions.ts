@@ -1,3 +1,6 @@
+import { Shield, Star, Crown, Swords, Flame, Zap, Bird, Mountain, Trophy, Anchor } from "lucide-react";
+import BallIcon from "@/components/icons/BallIcon";
+
 export const CREST_SHAPES = [
   { value: "shield", label: "Blason" },
   { value: "circle", label: "Rond" },
@@ -10,7 +13,27 @@ export const CREST_COLORS = [
 ];
 
 export const CREST_SECONDARY_COLORS = [
-  "#0E1015", "#FFFFFF", "#D4AF37", "#171B24",
+  "#FFFFFF", "#D4AF37", "#0E1015", "#171B24",
 ];
 
-export const CREST_ICONS = ["⚽", "🦁", "🦅", "⭐", "👑", "🔥", "⚔️", "🐺", "🛡️", "⚡"];
+// Emblèmes vectoriels (plus d'emoji) : mêmes conventions que lucide-react
+// (trait fin, sans remplissage) pour un rendu cohérent et redimensionnable.
+export const CREST_ICONS = [
+  { key: "ball", label: "Ballon", Icon: BallIcon },
+  { key: "shield", label: "Bouclier", Icon: Shield },
+  { key: "star", label: "Étoile", Icon: Star },
+  { key: "crown", label: "Couronne", Icon: Crown },
+  { key: "swords", label: "Épées", Icon: Swords },
+  { key: "flame", label: "Flamme", Icon: Flame },
+  { key: "bolt", label: "Éclair", Icon: Zap },
+  { key: "eagle", label: "Aigle", Icon: Bird },
+  { key: "mountain", label: "Montagne", Icon: Mountain },
+  { key: "trophy", label: "Trophée", Icon: Trophy },
+  { key: "anchor", label: "Ancre", Icon: Anchor },
+] as const;
+
+export type CrestIconKey = (typeof CREST_ICONS)[number]["key"];
+
+export function getCrestIcon(key: string) {
+  return CREST_ICONS.find((i) => i.key === key)?.Icon ?? Shield;
+}

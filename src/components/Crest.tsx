@@ -1,5 +1,7 @@
 "use client";
 
+import { getCrestIcon } from "@/lib/crestOptions";
+
 export type CrestShape = "shield" | "circle" | "hexagon";
 
 const SHAPE_PATHS: Record<CrestShape, string> = {
@@ -12,24 +14,29 @@ export interface CrestProps {
   shape: CrestShape;
   primaryColor: string;
   secondaryColor: string;
-  icon: string;
+  icon: string; // clé (ex. "ball", "shield", "eagle"...)
   size?: number;
 }
 
 export default function Crest({ shape, primaryColor, secondaryColor, icon, size = 96 }: CrestProps) {
+  const Icon = getCrestIcon(icon);
+  const height = size * 1.06;
+
   return (
-    <svg width={size} height={size * 1.06} viewBox="0 0 100 108" className="drop-shadow-lg">
-      <path d={SHAPE_PATHS[shape]} fill={primaryColor} stroke={secondaryColor} strokeWidth="4" />
-      <path
-        d={SHAPE_PATHS[shape]}
-        fill="none"
-        stroke="rgba(255,255,255,0.15)"
-        strokeWidth="1.5"
-        transform="scale(0.9) translate(5.5, 5.5)"
-      />
-      <text x="50" y="62" textAnchor="middle" fontSize="38" dominantBaseline="middle">
-        {icon}
-      </text>
-    </svg>
+    <div className="relative inline-block drop-shadow-lg" style={{ width: size, height }}>
+      <svg width={size} height={height} viewBox="0 0 100 108" className="absolute inset-0">
+        <path d={SHAPE_PATHS[shape]} fill={primaryColor} stroke={secondaryColor} strokeWidth="4" />
+        <path
+          d={SHAPE_PATHS[shape]}
+          fill="none"
+          stroke="rgba(255,255,255,0.15)"
+          strokeWidth="1.5"
+          transform="scale(0.9) translate(5.5, 5.5)"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center pb-[6%]">
+        <Icon size={size * 0.42} color={secondaryColor} strokeWidth={1.6} />
+      </div>
+    </div>
   );
 }
