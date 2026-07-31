@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ clubId: existingProfile.club_id });
   }
 
-  const { clubName } = await req.json().catch(() => ({ clubName: null }));
+  const { clubName, crest } = await req.json().catch(() => ({ clubName: null, crest: null }));
   const { name, short_name } = generateAiClubName();
 
   const { data: club, error: clubError } = await admin
@@ -41,6 +41,10 @@ export async function POST(req: Request) {
       formation: "4-3-3",
       tactic_style: "balanced",
       mentality: 50,
+      crest_shape: crest?.shape || "shield",
+      crest_icon: crest?.icon || "⚽",
+      primary_color: crest?.primaryColor || "#C81E3A",
+      secondary_color: crest?.secondaryColor || "#0E1015",
     })
     .select()
     .single();

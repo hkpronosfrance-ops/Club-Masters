@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Nav from "@/components/Nav";
+import Crest from "@/components/Crest";
 
 function formatMoney(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)} M€`;
@@ -38,10 +39,19 @@ export default async function DashboardPage() {
       <main className="max-w-5xl mx-auto px-5 py-8">
         <div className="ticket-card bg-gradient-to-br from-pitch-900 to-pitch-800 border border-pitch-700 p-6 mb-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <span className="text-xs uppercase tracking-widest text-muted font-mono">Ton club</span>
-              <h1 className="font-display text-3xl font-semibold mt-1">{club?.name}</h1>
-              <span className="text-sm text-muted">Réputation {club?.reputation}/100</span>
+            <div className="flex items-center gap-4">
+              <Crest
+                shape={club?.crest_shape ?? "shield"}
+                primaryColor={club?.primary_color ?? "#C81E3A"}
+                secondaryColor={club?.secondary_color ?? "#0E1015"}
+                icon={club?.crest_icon ?? "⚽"}
+                size={56}
+              />
+              <div>
+                <span className="text-xs uppercase tracking-widest text-muted font-mono">Ton club</span>
+                <h1 className="font-display text-3xl font-semibold mt-1">{club?.name}</h1>
+                <span className="text-sm text-muted">Réputation {club?.reputation}/100</span>
+              </div>
             </div>
             <div className="text-right">
               <span className="text-xs uppercase tracking-widest text-muted font-mono">Trésorerie</span>
