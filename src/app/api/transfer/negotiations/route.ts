@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadStaffLevels, transferStaffEffects } from "@/lib/staffEffects";
 
 async function getUserClub() {
   const supabase = await createClient();
@@ -28,13 +29,16 @@ export async function GET() {
   const clubId = await getUserClub();
   if (!clubId) return NextResponse.json({ error: "Non authentifié ou aucun club." }, { status: 401 });
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("transfer_negotiations")
-    .select("*, player:players(id,first_name,last_name,position,overall,potential,value,wage), seller:clubs!transfer_negotiations_seller_club_id_fkey(id,name)")
-    .eq("buyer_club_id", clubId)
-    .order("created_at", { ascending: false });
+  const [{ data, error }, staffLevels] = await Promise.all([
+    admin
+      .from("transfer_negotiations")
+      .select("*, player:players(id,first_name,last_name,position,overall,potential,value,wage), seller:clubs!transfer_negotiations_seller_club_id_fkey(id,name)")
+      .eq("buyer_club_id", clubId)
+      .order("created_at", { ascending: false }),
+    loadStaffLevels(admin, clubId),
+  ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ negotiations: data ?? [] });
+  return NextResponse.json({ negotiations: data ?? [], staffEffects: transferStaffEffects(staffLevels) });
 }
 
 export async function POST(req: Request) {
@@ -52,17 +56,26 @@ export async function POST(req: Request) {
   }
 
   const admin = createAdminClient();
-  const [{ data: player }, { data: buyer }] = await Promise.all([
+  const [{ data: player }, { data: buyer }, staffLevels] = await Promise.all([
     admin.from("players").select("id,club_id,value,wage,is_listed,listed_price,overall,potential,age").eq("id", playerId).single(),
     admin.from("clubs").select("id,balance,reputation").eq("id", clubId).single(),
+    loadStaffLevels(admin, clubId),
   ]);
   if (!player?.club_id || player.club_id === clubId) return NextResponse.json({ error: "Joueur indisponible." }, { status: 400 });
-  if (!buyer || safeNumber(buyer.balance) < transferFee + signingBonus) return NextResponse.json({ error: "Budget insuffisant." }, { status: 400 });
+
+  const effects = transferStaffEffects(staffLevels);
+  const effectiveSigningBonus = Math.round(signingBonus * (1 - effects.signingBonusReduction));
+  if (!buyer || safeNumber(buyer.balance) < transferFee + effectiveSigningBonus) {
+    return NextResponse.json({ error: "Budget insuffisant." }, { status: 400 });
+  }
 
   const asking = Math.max(safeNumber(player.listed_price), safeNumber(player.value));
-  const wageDemand = Math.max(safeNumber(player.wage, 1000), Math.round((safeNumber(player.value) / 260) * (1 + Math.max(0, 55 - safeNumber(buyer.reputation, 50)) / 100)));
-  const feeRatio = asking > 0 ? transferFee / asking : 1;
-  const wageRatio = wageOffer / Math.max(1, wageDemand);
+  const wageDemand = Math.max(
+    safeNumber(player.wage, 1000),
+    Math.round((safeNumber(player.value) / 260) * (1 + Math.max(0, 55 - safeNumber(buyer.reputation, 50)) / 100)),
+  );
+  const feeRatio = asking > 0 ? transferFee / asking + effects.feeAcceptanceBonus : 1;
+  const wageRatio = wageOffer / Math.max(1, wageDemand) + effects.wageAcceptanceBonus;
   let status = "rejected";
   let clubResponse = "Le club vendeur juge l'offre trop faible.";
   let counterFee: number | null = null;
@@ -70,12 +83,17 @@ export async function POST(req: Request) {
 
   if (feeRatio >= 0.98 && wageRatio >= 0.95) {
     status = "accepted";
-    clubResponse = "Accord de principe trouvé. Tu peux finaliser le transfert.";
+    clubResponse = staffLevels.sporting_director > 0
+      ? "Ton directeur sportif a obtenu un accord de principe. Tu peux finaliser le transfert."
+      : "Accord de principe trouvé. Tu peux finaliser le transfert.";
   } else if (feeRatio >= 0.72 && wageRatio >= 0.75) {
     status = "countered";
-    counterFee = Math.round(Math.max(asking * 0.94, transferFee * 1.12));
-    counterWage = Math.round(Math.max(wageDemand * 0.95, wageOffer * 1.08));
-    clubResponse = "Le vendeur et l'agent ont formulé une contre-offre.";
+    const reduction = 1 - effects.counterOfferReduction;
+    counterFee = Math.round(Math.max(asking * 0.94, transferFee * 1.12) * reduction);
+    counterWage = Math.round(Math.max(wageDemand * 0.95, wageOffer * 1.08) * reduction);
+    clubResponse = staffLevels.sporting_director > 0
+      ? "Le directeur sportif a réduit les exigences de la contre-offre."
+      : "Le vendeur et l'agent ont formulé une contre-offre.";
   }
 
   const { data, error } = await admin.from("transfer_negotiations").insert({
@@ -84,7 +102,7 @@ export async function POST(req: Request) {
     player_id: player.id,
     transfer_fee: Math.round(transferFee),
     wage_offer: Math.round(wageOffer),
-    signing_bonus: Math.round(signingBonus),
+    signing_bonus: effectiveSigningBonus,
     contract_years: contractYears,
     status,
     club_response: clubResponse,
@@ -92,7 +110,14 @@ export async function POST(req: Request) {
     counter_wage: counterWage,
   }).select("*").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ negotiation: data });
+  return NextResponse.json({
+    negotiation: data,
+    staffImpact: {
+      sportingDirectorLevel: staffLevels.sporting_director,
+      savedSigningBonus: signingBonus - effectiveSigningBonus,
+      counterOfferReduction: effects.counterOfferReduction,
+    },
+  });
 }
 
 export async function PATCH(req: Request) {
