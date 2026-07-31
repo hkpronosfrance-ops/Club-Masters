@@ -28,7 +28,8 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   const body = await request.json().catch(() => ({}));
-  const starterIds = Array.isArray(body.starterIds) ? [...new Set(body.starterIds.filter((id: unknown) => typeof id === "string"))] : [];
+  const rawStarterIds: unknown[] = Array.isArray(body.starterIds) ? body.starterIds : [];
+  const starterIds: string[] = [...new Set(rawStarterIds.filter((id): id is string => typeof id === "string"))];
   if (starterIds.length !== 11) return NextResponse.json({ error: "Sélectionne exactement 11 titulaires avant de lancer le match." }, { status: 400 });
 
   const admin = createAdminClient();
@@ -55,14 +56,14 @@ export async function POST(request: Request) {
 
   const ownedPlayers = (myPlayers ?? []).filter(available);
   const opponentAvailable = (opponentPlayers ?? []).filter(available);
-  const starters = starterIds.map((id: string) => ownedPlayers.find((player) => player.id === id)).filter(Boolean);
+  const starters = starterIds.map((id) => ownedPlayers.find((player) => player.id === id)).filter(Boolean);
   if (starters.length !== 11) return NextResponse.json({ error: "La composition contient un joueur indisponible ou qui n'appartient plus à ton club." }, { status: 400 });
   if (!starters.some((player: any) => player.position === "GK")) return NextResponse.json({ error: "Ta composition doit contenir au moins un gardien." }, { status: 400 });
   const opponentStarters = bestEleven(opponentAvailable);
   if (opponentStarters.length < 11) return NextResponse.json({ error: "L'adversaire ne dispose pas de suffisamment de joueurs disponibles." }, { status: 400 });
 
   const opponentStarterIds = opponentStarters.map((player: any) => player.id);
-  const myEngine = toEngineClub(myClub, ownedPlayers, starterIds as string[]);
+  const myEngine = toEngineClub(myClub, ownedPlayers, starterIds);
   const opponentEngine = toEngineClub(opponent, opponentAvailable, opponentStarterIds);
   const home = homeIsMe ? myEngine : opponentEngine;
   const away = homeIsMe ? opponentEngine : myEngine;
