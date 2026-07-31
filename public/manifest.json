@@ -1,0 +1,10 @@
+{
+  "name": "Dynasty Eleven",
+  "short_name": "Dynasty XI",
+  "description": "Le manager de football qui se joue entièrement dans ton navigateur.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0A0C10",
+  "theme_color": "#0A0C10",
+  "icons": []
+}
