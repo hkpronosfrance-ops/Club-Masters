@@ -15,6 +15,7 @@ const ITEMS = [
   { href: "/academy", label: "Académie", icon: "🌟" },
   { href: "/infrastructure", label: "Structures", icon: "🏗️" },
   { href: "/tactics", label: "Match", icon: "⚽" },
+  { href: "/match-live", label: "Direct", icon: "📺" },
   { href: "/league", label: "Ligue", icon: "🏆" },
   { href: "/cup", label: "Coupe", icon: "🥇" },
   { href: "/europe", label: "Europe", icon: "🌍" },
