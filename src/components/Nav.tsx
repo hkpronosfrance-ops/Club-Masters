@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const ITEMS = [
   { href: "/dashboard", label: "Club", icon: "🏟️" },
+  { href: "/career", label: "Carrière", icon: "🧑‍💼" },
   { href: "/squad", label: "Effectif", icon: "👥" },
   { href: "/training", label: "Entraînement", icon: "🏋️" },
   { href: "/academy", label: "Académie", icon: "🌟" },
