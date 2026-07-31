@@ -46,10 +46,11 @@ type StatsRow = {
   clean_sheets: number;
   goals_conceded: number;
   saves: number;
+  man_of_match?: number;
   rating_total: number;
   rating_count: number;
   updated_at: string;
-  [key: string]: string | number;
+  [key: string]: string | number | undefined;
 };
 
 const fullName = (player: Player) => `${player.first_name} ${player.last_name}`;
@@ -87,8 +88,8 @@ function playerRating(player: Player, minutes: number, goals: number, assists: n
 
 export async function updatePlayerSeasonStats(input: UpdateInput) {
   const teams = [
-    { team: "home" as const, clubId: input.homeClubId, players: input.homePlayers, starters: input.homeStarterIds, scored: input.homeScore, conceded: input.awayScore },
-    { team: "away" as const, clubId: input.awayClubId, players: input.awayPlayers, starters: input.awayStarterIds, scored: input.awayScore, conceded: input.homeScore },
+    { team: "home" as const, clubId: input.homeClubId, players: input.homePlayers, starters: input.homeStarterIds, conceded: input.awayScore },
+    { team: "away" as const, clubId: input.awayClubId, players: input.awayPlayers, starters: input.awayStarterIds, conceded: input.homeScore },
   ];
 
   const rows: StatsRow[] = [];
@@ -123,6 +124,7 @@ export async function updatePlayerSeasonStats(input: UpdateInput) {
         clean_sheets: cleanSheet,
         goals_conceded: isKeeper ? side.conceded : 0,
         saves: isKeeper ? input.events.filter((event) => event.type === "save" && event.team !== side.team).length : 0,
+        man_of_match: 0,
         rating_total: rating,
         rating_count: 1,
         updated_at: new Date().toISOString(),
@@ -130,22 +132,32 @@ export async function updatePlayerSeasonStats(input: UpdateInput) {
     }
   }
 
-  for (const row of rows) {
-    const { data: current } = await input.admin.from("player_season_stats").select("*").eq("season_id", input.seasonId).eq("player_id", row.player_id).maybeSingle();
-    if (!current) {
-      await input.admin.from("player_season_stats").insert(row);
-      continue;
-    }
-    const additive = ["appearances", "starts", "minutes", "goals", "assists", "shots", "shots_on_target", "yellow_cards", "red_cards", "clean_sheets", "goals_conceded", "saves", "rating_total", "rating_count"];
-    const update: Record<string, unknown> = { club_id: row.club_id, updated_at: row.updated_at };
-    for (const key of additive) update[key] = Number(current[key] ?? 0) + Number(row[key] ?? 0);
-    await input.admin.from("player_season_stats").update(update).eq("id", current.id);
-  }
+  if (!rows.length) return;
+
+  const playerIds = rows.map((row) => row.player_id);
+  const { data: currentRows, error: readError } = await input.admin
+    .from("player_season_stats")
+    .select("*")
+    .eq("season_id", input.seasonId)
+    .in("player_id", playerIds);
+  if (readError) throw readError;
+
+  const currentByPlayer = new Map((currentRows ?? []).map((row: any) => [row.player_id, row]));
+  const additive = ["appearances", "starts", "minutes", "goals", "assists", "shots", "shots_on_target", "yellow_cards", "red_cards", "clean_sheets", "goals_conceded", "saves", "rating_total", "rating_count"] as const;
 
   const candidates = rows.map((row) => ({ ...row, score: Number(row.rating_total) + Number(row.goals) * 0.7 + Number(row.assists) * 0.4 }));
   const man = candidates.sort((a, b) => Number(b.score) - Number(a.score))[0];
-  if (man?.player_id) {
-    const { data: current } = await input.admin.from("player_season_stats").select("id,man_of_match").eq("season_id", input.seasonId).eq("player_id", man.player_id).maybeSingle();
-    if (current) await input.admin.from("player_season_stats").update({ man_of_match: Number(current.man_of_match ?? 0) + 1 }).eq("id", current.id);
-  }
+
+  const mergedRows = rows.map((row) => {
+    const current = currentByPlayer.get(row.player_id) as Record<string, unknown> | undefined;
+    const merged: StatsRow = { ...row };
+    for (const key of additive) merged[key] = Number(current?.[key] ?? 0) + Number(row[key] ?? 0);
+    merged.man_of_match = Number(current?.man_of_match ?? 0) + (row.player_id === man?.player_id ? 1 : 0);
+    return merged;
+  });
+
+  const { error: upsertError } = await input.admin
+    .from("player_season_stats")
+    .upsert(mergedRows, { onConflict: "season_id,player_id" });
+  if (upsertError) throw upsertError;
 }
