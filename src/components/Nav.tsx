@@ -13,6 +13,7 @@ const ITEMS = [
   { href: "/league", label: "Ligue", icon: "🏆" },
   { href: "/cup", label: "Coupe", icon: "🥇" },
   { href: "/europe", label: "Europe", icon: "🌍" },
+  { href: "/world", label: "Actualités", icon: "📰" },
   { href: "/board", label: "Direction", icon: "📋" },
   { href: "/transfermarket", label: "Mercato", icon: "💰" },
   { href: "/negotiations", label: "Négociations", icon: "🤝" },
