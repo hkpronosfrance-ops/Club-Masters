@@ -155,7 +155,7 @@ export default function HomePage() {
               </Field>
               {error && <p className="text-carmine-light text-xs">{error}</p>}
               <button type="submit" className="w-full bg-carmine hover:bg-carmine-light transition text-white font-medium py-2.5 rounded">
-                Continuer → personnaliser l&apos;écusson
+                Créer mon club →
               </button>
             </form>
           )}
