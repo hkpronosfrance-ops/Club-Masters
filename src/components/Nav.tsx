@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/squad", label: "Effectif", icon: "👥" },
   { href: "/training", label: "Entraînement", icon: "🏋️" },
   { href: "/academy", label: "Académie", icon: "🌟" },
+  { href: "/infrastructure", label: "Structures", icon: "🏗️" },
   { href: "/tactics", label: "Match", icon: "⚽" },
   { href: "/league", label: "Ligue", icon: "🏆" },
   { href: "/cup", label: "Coupe", icon: "🥇" },
