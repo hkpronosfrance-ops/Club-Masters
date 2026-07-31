@@ -34,6 +34,7 @@ declare
   regen_last text;
   regen_overall integer;
   regen_potential integer;
+  regen_id uuid;
 begin
   if new.status <> 'finished' or old.status = 'finished' then
     return new;
@@ -99,10 +100,10 @@ begin
         greatest(40,regen_overall + floor(random()*12)::int - 5),72,0,50,
         round(power(regen_overall::numeric,3.1)*1.6),greatest(700,regen_overall*40),
         (extract(year from now())::int+4)||'-06-30',p.id)
-      returning id into p.id;
+      returning id into regen_id;
 
       insert into player_lifecycle_events(season_id,player_id,club_id,event_type,player_name,details)
-      values(new.id,p.id,p.club_id,'regen_created',regen_first||' '||regen_last,jsonb_build_object('overall',regen_overall,'potential',regen_potential));
+      values(new.id,regen_id,p.club_id,'regen_created',regen_first||' '||regen_last,jsonb_build_object('overall',regen_overall,'potential',regen_potential));
 
       insert into world_news(club_id,category,importance,title,content)
       values(p.club_id,'player',7,p.first_name||' '||p.last_name||' prend sa retraite',regen_first||' '||regen_last||' rejoint le monde professionnel comme nouveau talent.');
