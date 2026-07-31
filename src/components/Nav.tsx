@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 const ITEMS = [
   { href: "/dashboard", label: "Club", icon: "🏟️" },
   { href: "/squad", label: "Effectif", icon: "👥" },
+  { href: "/training", label: "Entraînement", icon: "🏋️" },
   { href: "/tactics", label: "Match", icon: "⚽" },
   { href: "/league", label: "Ligue", icon: "🏆" },
   { href: "/board", label: "Direction", icon: "📋" },
