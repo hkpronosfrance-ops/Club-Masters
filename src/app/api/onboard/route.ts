@@ -38,37 +38,64 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: profileUpsertError.message }, { status: 500 });
   }
 
-  const { data: club, error: clubError } = await admin
+  // Filet de sécurité : si un club existe déjà pour ce propriétaire (ex. tentative
+  // précédente interrompue après la création du club), on le réutilise au lieu
+  // d'en recréer un en double.
+  const { data: existingClub } = await admin
     .from("clubs")
-    .insert({
-      owner_id: user.id,
-      is_ai: false,
-      name: clubName || name,
-      short_name: (clubName || short_name).slice(0, 3).toUpperCase(),
-      balance: 5_000_000,
-      reputation: 50,
-      formation: "4-3-3",
-      tactic_style: "balanced",
-      mentality: 50,
-      crest_shape: crest?.shape || "shield",
-      crest_icon: crest?.icon || "ball",
-      primary_color: crest?.primaryColor || "#C81E3A",
-      secondary_color: crest?.secondaryColor || "#FFFFFF",
-    })
-    .select()
-    .single();
+    .select("id")
+    .eq("owner_id", user.id)
+    .maybeSingle();
 
-  if (clubError || !club) {
-    return NextResponse.json({ error: clubError?.message }, { status: 500 });
+  let club = existingClub as { id: string } | null;
+
+  if (!club) {
+    const { data: newClub, error: clubError } = await admin
+      .from("clubs")
+      .insert({
+        owner_id: user.id,
+        is_ai: false,
+        name: clubName || name,
+        short_name: (clubName || short_name).slice(0, 3).toUpperCase(),
+        balance: 5_000_000,
+        reputation: 50,
+        formation: "4-3-3",
+        tactic_style: "balanced",
+        mentality: 50,
+        crest_shape: crest?.shape || "shield",
+        crest_icon: crest?.icon || "ball",
+        primary_color: crest?.primaryColor || "#C81E3A",
+        secondary_color: crest?.secondaryColor || "#FFFFFF",
+      })
+      .select()
+      .single();
+
+    if (clubError || !newClub) {
+      return NextResponse.json({ error: clubError?.message }, { status: 500 });
+    }
+    club = newClub;
   }
 
-  const squad = generateSquad(58);
-  const { error: playersError } = await admin.from("players").insert(
-    squad.map((p) => ({ ...p, club_id: club.id }))
-  );
+  if (!club) {
+    return NextResponse.json({ error: "Erreur inattendue lors de la création du club" }, { status: 500 });
+  }
 
-  if (playersError) {
-    return NextResponse.json({ error: playersError.message }, { status: 500 });
+  const clubId = club.id;
+
+  const { count: existingPlayerCount } = await admin
+    .from("players")
+    .select("id", { count: "exact", head: true })
+    .eq("club_id", clubId);
+
+  if (!existingPlayerCount) {
+    const squad = generateSquad(58);
+    const { error: playersError } = await admin.from("players").insert(
+      squad.map((p) => ({ ...p, club_id: clubId }))
+    );
+
+    if (playersError) {
+      return NextResponse.json({ error: playersError.message }, { status: 500 });
+    }
   }
 
   const { error: profileLinkError } = await admin
