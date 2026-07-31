@@ -14,6 +14,7 @@ const ITEMS = [
   { href: "/cup", label: "Coupe", icon: "🥇" },
   { href: "/europe", label: "Europe", icon: "🌍" },
   { href: "/world", label: "Actualités", icon: "📰" },
+  { href: "/ai-market", label: "Mercato IA", icon: "🤖" },
   { href: "/board", label: "Direction", icon: "📋" },
   { href: "/transfermarket", label: "Mercato", icon: "💰" },
   { href: "/negotiations", label: "Négociations", icon: "🤝" },
