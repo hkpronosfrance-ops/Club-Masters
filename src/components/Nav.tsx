@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "/dashboard", label: "Club", icon: "🏟️" },
   { href: "/career", label: "Carrière", icon: "🧑‍💼" },
   { href: "/squad", label: "Effectif", icon: "👥" },
+  { href: "/data-center", label: "Données", icon: "📊" },
   { href: "/locker-room", label: "Vestiaire", icon: "🗣️" },
   { href: "/press", label: "Médias", icon: "🎙️" },
   { href: "/training", label: "Entraînement", icon: "🏋️" },
