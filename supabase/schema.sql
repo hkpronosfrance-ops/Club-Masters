@@ -17,7 +17,10 @@ create table if not exists clubs (
   is_ai boolean not null default false,
   name text not null,
   short_name text not null,
-  primary_color text default '#c81e3a',
+  primary_color text not null default '#C81E3A',
+  secondary_color text not null default '#FFFFFF',
+  crest_shape text not null default 'shield',
+  crest_icon text not null default 'ball',
   balance bigint not null default 5000000, -- en euros virtuels
   reputation int not null default 50, -- 0-100
   formation text not null default '4-3-3',
@@ -26,7 +29,10 @@ create table if not exists clubs (
   wins int not null default 0,
   draws int not null default 0,
   losses int not null default 0,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  constraint clubs_crest_shape_check check (crest_shape in ('shield', 'round', 'diamond')),
+  constraint clubs_primary_color_hex_check check (primary_color ~ '^#[0-9A-Fa-f]{6}$'),
+  constraint clubs_secondary_color_hex_check check (secondary_color ~ '^#[0-9A-Fa-f]{6}$')
 );
 
 alter table profiles
