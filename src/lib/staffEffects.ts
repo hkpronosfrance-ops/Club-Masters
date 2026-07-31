@@ -63,5 +63,19 @@ export function matchMedicalEffects(levels: StaffLevels) {
     injuryMultiplier: Math.max(0.45, 1 - levels.doctor * 0.045 - levels.fitness_coach * 0.012),
     fatigueGainReduction: Math.floor(levels.fitness_coach / 2),
     recoveryBonus: Math.floor(levels.fitness_coach / 3),
+    injuryDaysMultiplier: Math.max(0.55, 1 - levels.doctor * 0.035),
+  };
+}
+
+export function transferStaffEffects(levels: StaffLevels) {
+  const director = levels.sporting_director;
+  const scout = levels.scout;
+  return {
+    feeAcceptanceBonus: director * 0.012,
+    wageAcceptanceBonus: director * 0.009,
+    counterOfferReduction: Math.min(0.18, director * 0.015),
+    signingBonusReduction: Math.min(0.15, director * 0.012),
+    scoutingPrecision: Math.min(0.45, scout * 0.04),
+    hiddenPotentialBonus: Math.floor(scout / 3),
   };
 }
