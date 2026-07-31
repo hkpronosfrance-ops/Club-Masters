@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "/dashboard", label: "Club", icon: "🏟️" },
   { href: "/squad", label: "Effectif", icon: "👥" },
   { href: "/training", label: "Entraînement", icon: "🏋️" },
+  { href: "/academy", label: "Académie", icon: "🌟" },
   { href: "/tactics", label: "Match", icon: "⚽" },
   { href: "/league", label: "Ligue", icon: "🏆" },
   { href: "/board", label: "Direction", icon: "📋" },
