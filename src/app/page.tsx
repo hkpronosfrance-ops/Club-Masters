@@ -61,19 +61,19 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="ticket-card bg-pitch-900 border border-pitch-700 p-6">
+        <div className="ticket-card bg-pitch-900 border border-pitch-700 p-6 shadow-2xl shadow-black/40">
           <div className="flex gap-1 mb-6 bg-pitch-800 p-1 rounded-md">
             <button
               type="button"
               onClick={() => setMode("signup")}
-              className={`flex-1 py-2 text-sm font-medium rounded transition ${mode === "signup" ? "bg-carmine text-white" : "text-muted"}`}
+              className={`flex-1 py-2 text-sm font-medium rounded transition ${mode === "signup" ? "bg-carmine text-white shadow-lg shadow-carmine/30" : "text-muted"}`}
             >
               Créer mon club
             </button>
             <button
               type="button"
               onClick={() => setMode("login")}
-              className={`flex-1 py-2 text-sm font-medium rounded transition ${mode === "login" ? "bg-carmine text-white" : "text-muted"}`}
+              className={`flex-1 py-2 text-sm font-medium rounded transition ${mode === "login" ? "bg-carmine text-white shadow-lg shadow-carmine/30" : "text-muted"}`}
             >
               J&apos;ai déjà un club
             </button>
