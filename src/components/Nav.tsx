@@ -22,6 +22,7 @@ const ITEMS = [
   { href: "/board", label: "Direction", icon: "📋" },
   { href: "/transfermarket", label: "Mercato", icon: "💰" },
   { href: "/negotiations", label: "Négociations", icon: "🤝" },
+  { href: "/agents", label: "Agents", icon: "🤵" },
 ];
 
 export default function Nav() {
