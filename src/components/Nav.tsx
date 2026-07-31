@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/career", label: "Carrière", icon: "🧑‍💼" },
   { href: "/squad", label: "Effectif", icon: "👥" },
   { href: "/locker-room", label: "Vestiaire", icon: "🗣️" },
+  { href: "/press", label: "Médias", icon: "🎙️" },
   { href: "/training", label: "Entraînement", icon: "🏋️" },
   { href: "/academy", label: "Académie", icon: "🌟" },
   { href: "/infrastructure", label: "Structures", icon: "🏗️" },
