@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 type Player = {
@@ -125,14 +126,19 @@ export default function SquadClient({ players }: { players: Player[] }) {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between border-t border-white/8 px-4 py-3">
+              <div className="flex items-center justify-between gap-2 border-t border-white/8 px-4 py-3">
                 <div>
                   <p className="text-[9px] uppercase tracking-[0.16em] text-muted">Valeur</p>
                   <p className="font-mono text-sm text-gold">{formatMoney(player.value)}</p>
                 </div>
-                <button onClick={() => setExpandedId(expanded ? null : player.id)} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200">
-                  {expanded ? "Réduire" : "Voir profil"}
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => setExpandedId(expanded ? null : player.id)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-200">
+                    {expanded ? "Réduire" : "Stats"}
+                  </button>
+                  <Link href={`/players/${player.id}`} className="rounded-xl bg-carmine px-3 py-2 text-xs font-semibold text-white">
+                    Profil complet
+                  </Link>
+                </div>
               </div>
 
               {expanded && (
