@@ -70,6 +70,8 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   const payload = await loadPayload(clubId);
+  if (!payload.club) return NextResponse.json({ error: "Club introuvable." }, { status: 404 });
+
   const level = Number(payload.infrastructure?.[`${facility}_level`] ?? 1);
   if (level >= 10) return NextResponse.json({ error: "Cette infrastructure est déjà au niveau maximal." }, { status: 400 });
   const active = payload.projects.find((project: any) => project.facility === facility && project.status === "active");
@@ -77,10 +79,11 @@ export async function POST(request: Request) {
 
   const nextLevel = level + 1;
   const cost = projectCost(nextLevel);
-  if (Number(payload.club?.balance ?? 0) < cost) return NextResponse.json({ error: "Trésorerie insuffisante." }, { status: 400 });
+  const clubBalance = Number(payload.club.balance ?? 0);
+  if (clubBalance < cost) return NextResponse.json({ error: "Trésorerie insuffisante." }, { status: 400 });
   const completesCycle = payload.currentCycle + projectDuration(nextLevel);
 
-  await admin.from("clubs").update({ balance: Number(payload.club.balance) - cost }).eq("id", clubId);
+  await admin.from("clubs").update({ balance: clubBalance - cost }).eq("id", clubId);
   await admin.from("infrastructure_projects").insert({ club_id: clubId, facility, from_level: level, to_level: nextLevel, cost, started_cycle: payload.currentCycle, completes_cycle: completesCycle });
   await admin.from("world_news").insert({ club_id: clubId, category: "club", importance: nextLevel >= 6 ? 3 : 2, title: `${LABELS[facility]} : travaux lancés`, body: `Le club investit ${Math.round(cost / 1000)} k€ pour atteindre le niveau ${nextLevel}. Livraison prévue au cycle ${completesCycle}.` });
 
