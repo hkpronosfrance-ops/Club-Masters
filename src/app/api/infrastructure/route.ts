@@ -30,16 +30,29 @@ async function userClubId() {
   return profile?.club_id ?? null;
 }
 
+async function completeProjects(clubId: string, currentCycle: number) {
+  const admin = createAdminClient();
+  const { data: due } = await admin.from("infrastructure_projects").select("*").eq("club_id", clubId).eq("status", "active").lte("completes_cycle", currentCycle);
+  for (const project of due ?? []) {
+    const facility = project.facility as Facility;
+    await admin.from("club_infrastructures").update({ [`${facility}_level`]: project.to_level, updated_at: new Date().toISOString() }).eq("club_id", clubId);
+    await admin.from("infrastructure_projects").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", project.id);
+    await admin.from("world_news").insert({ club_id: clubId, category: "club", importance: project.to_level >= 6 ? 3 : 2, title: `${LABELS[facility]} modernisé`, body: `Les travaux sont terminés. L’infrastructure atteint désormais le niveau ${project.to_level}.` });
+  }
+}
+
 async function loadPayload(clubId: string) {
   const admin = createAdminClient();
   await admin.from("club_infrastructures").upsert({ club_id: clubId }, { onConflict: "club_id", ignoreDuplicates: true });
-  const [{ data: infrastructure }, { data: projects }, { data: club }, { data: cycle }] = await Promise.all([
+  const { data: cycle } = await admin.from("world_cycles").select("cycle_number").order("cycle_number", { ascending: false }).limit(1).maybeSingle();
+  const currentCycle = Number(cycle?.cycle_number ?? 0);
+  await completeProjects(clubId, currentCycle);
+  const [{ data: infrastructure }, { data: projects }, { data: club }] = await Promise.all([
     admin.from("club_infrastructures").select("*").eq("club_id", clubId).single(),
     admin.from("infrastructure_projects").select("*").eq("club_id", clubId).order("created_at", { ascending: false }),
     admin.from("clubs").select("id,name,balance").eq("id", clubId).single(),
-    admin.from("world_cycles").select("cycle_number").order("cycle_number", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  return { infrastructure, projects: projects ?? [], club, currentCycle: Number(cycle?.cycle_number ?? 0), labels: LABELS };
+  return { infrastructure, projects: projects ?? [], club, currentCycle, labels: LABELS };
 }
 
 export async function GET() {
